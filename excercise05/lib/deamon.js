@@ -21,13 +21,14 @@
 
  	work.on('exit', function(code) {
  		if (code !== 0) {
+ 			console.log('开始重新启动服务进程');
  			spawn(server, config);
  		}
  	});
  }
 
  function main(argv) {
- 	spawn('server.js', argv[0]);
+ 	spawn('lib/server.js', argv[0]);
  	process.on('SIGTERM', function() {
  		console.log('守护进程接受SIGTERM');
  		work.kill();

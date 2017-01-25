@@ -358,11 +358,53 @@ function main(arvg) {
     process.on('SIGTERM', function() {
         server.close(function() {
             process.exit(0);
-        })
-    })
+        });
+    }); 
  }
 ```
 我们可以把守护进程的代码保存为daemon.js，之后我们可以通过node daemon.js config.json启动服务，而守护进程会进一步启动和监控服务器进程。此外，为了能够正常终止服务，我们让守护进程在接收到SIGTERM信号时终止服务器进程。而在服务器进程这一端，同样在收到SIGTERM信号时先停掉HTTP服务再正常退出。至此，我们的服务器程序就靠谱很多了。
+
+## 第四次迭代 ##
+在我们解决了服务器本身的功能、性能和可靠性的问题后，接着我们需要考虑一下代码部署的问题，以及服务器控制的问题。
+
+### 设计 ###
+一般而言，程序在服务器上有一个固定的部署目录，每次程序有更新后，都重新发布到部署目录里。而一旦完成部署后，一般也可以通过固定的服务控制脚本启动和停止服务。因此我们的服务器程序部署目录可以做如下设计。
+```javascript
+- deploy/
+    - bin/
+        startws.sh
+        killws.sh
+    + conf/
+        config.json
+    + lib/
+        daemon.js
+        server.js
+```
+在以上目录结构中，我们分类存放了服务控制脚本、配置文件和服务器代码。
+
+### 实现 ###
+按以上目录结构分别存放对应的文件之后，接下来我们看看控制脚本怎么写。首先是start.sh。
+```sh
+#!bin/sh
+if [ ! -f 'pid' ]
+then
+    node ../lib/deamon.js ../config/config.json &
+    echo $! > pid
+fi
+```
+然后是killws.sh。
+```sh
+#!bin/sh
+if [ -f 'pid' ]
+then
+    kill $(tr -d '\r\n' < pid)
+    rm pid
+fi
+```
+于是这样我们就有了一个简单的代码部署目录和服务控制脚本，我们的服务器程序就可以上线工作了。
+
+## 后续迭代 ## 
+我们的服务器程序正式上线工作后，我们接下来或许会发现还有很多可以改进的点。比如服务器程序在合并JS文件时可以自动在JS文件之间插入一个;来避免一些语法问题，比如服务器程序需要提供日志来统计访问量，比如服务器程序需要能充分利用多核CPU，等等。而此时的你，在学习了这么久NodeJS之后，应该已经知道该怎么做了。
 
 摘自: [https://nqdeng.github.io/7-days-nodejs/](https://nqdeng.github.io/7-days-nodejs/)
 
