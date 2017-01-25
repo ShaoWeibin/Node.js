@@ -111,9 +111,11 @@ function combineFiles(pathnames, callback) {
  	var root = config.root || '.';
  	var port = config.port || '80';
 
+ 	 var server;
+
  	console.log('root:', root, 'port:', port);
 
- 	http.createServer(function(request, response) {
+ 	server = http.createServer(function(request, response) {
  		var urlInfo = parseURL(root, request.url);
  		console.log(urlInfo);
 
@@ -130,6 +132,14 @@ function combineFiles(pathnames, callback) {
  			}
  		});
  	}).listen(port);
+
+ 	process.on('SIGTERM', function() {
+ 		console.log('服务进程接受SIGTERM');
+ 		server.close(function() {
+ 			process.exit(0);
+ 		});
+ 		console.log('服务进程终止');
+ 	});
  }
 
  main(process.argv.slice(2));
