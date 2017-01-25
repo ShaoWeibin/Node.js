@@ -4,7 +4,7 @@
 开发一个简单的静态文件合并服务器，该服务支持类似以下格式的JS或CSS文件合并请求
 ``` javascript
 // url实例
-http://assets.example.com/foo/??bar.js,baz.js
+http://localhost:8000/??travel.js,copy.js
 ```
 在以上URL中，??是一个分隔符，之前是需要合并的多个文件的URL的公共部分，之后是使用,分隔的差异部分。因此服务器处理这个URL时，返回的是以下两个文件按顺序合并后的内容。
 ``` javascript
@@ -129,7 +129,7 @@ function combineFiles(pathnames, callback) {
 我们可以把以上代码保存为server.js，之后就可以通过node server.js config.json命令启动程序，于是我们的第一版静态文件合并服务器就顺利完工了。
 另外，以上代码存在一个不那么明显的逻辑缺陷。例如，使用以下URL请求服务器时会有惊喜（请求可以正常返回结果）。
 ``` javascript
-http://assets.example.com/foo/bar.js,foo/baz.js
+http://localhost:8000/travel.js,copy.js
 ```
 经过分析之后我们会发现问题出在/被自动替换/??这个行为上，而这个问题我们可以到第二次迭代时再解决。
 
@@ -166,7 +166,156 @@ http://assets.example.com/foo/bar.js,foo/baz.js
 ```
 按上述方式解决第一个问题后，因为服务器不需要完整地缓存每个请求的输出数据了，第二个问题也迎刃而解。
 
-摘自: https://nqdeng.github.io/7-days-nodejs/
+### 实现 ###
+根据以上设计，第二版代码按以下方式调整了部分函数。
+``` javascript
+/**
+ * Create by weibin.shao on 2017/1/25.
+ * 静态文件合并服务器
+ * arvg[0] JSON配置文件路径
+ */
+
+ const fs = require('fs');
+ const http = require('http');
+ const path = require('path');
+
+const MIME = {
+    '.css': 'text/css',
+    '.js': 'application/javascript'
+};
+
+/**
+ * 合并文件
+ * 第一次迭代使用，第二次迭代废除
+ * @param pathnames pathname Array
+ * @param callback 
+ * @return 
+ */
+function combineFiles(pathnames, callback) {
+    var output = [];
+    (function next(i, len){
+        if (i < len) {
+            fs.readFile(pathnames[i], function(error, data) {
+                if (error) {
+                    callback(error);
+                } else {
+                    output.push(data);
+                    next(i + 1, len);
+                }
+            });
+        } else {
+            callback(null, Buffer.concat(output));
+        }
+    })(0, pathnames.length);
+}
+
+/**
+ * 解析URL
+ * @param root
+ * @param url 
+ * @return 
+ */
+ function parseURL(root, url) {
+    var base, pathnames, parts;
+
+    if (url.indexOf('??') === -1) {
+        url = url.replace('/', '/??');
+    }
+
+    parts = url.split('??');
+    base = parts[0];
+    pathnames = parts[1].split(',').map(function(value) {
+        return path.join(root, base, value);
+    });
+
+    return {
+        mime: MIME[path.extname(pathnames[0])] || 'text/plain',
+        pathnames: pathnames
+    };
+ }
+
+ /**
+ * 输出文件内容
+ * @param pathnames
+ * @return 
+ */
+ function outputFiles(pathnames, write) {
+    (function next(i, len) {
+        if (i < len) {
+            var reader = fs.createReadStream(pathnames[i]);
+
+            reader.pipe(write, {end: false});
+            reader.on('end', function() {
+                next(i + 1, len);
+            })
+        } else {
+            write.end();
+        }
+    })(0, pathnames.length);
+ }
+
+ /**
+ * 检验文件是否有效
+ * @param pathnames
+ * @return 
+ */
+ function validateFiles(pathnames, callback) {
+    (function next(i, len) {
+        if (i < len) {
+            fs.stat(pathnames[i], function(error, status) {
+                if (error) {
+                    callback(error);
+                } else if (!status.isFile()) {
+                    callback(new error());
+                } else {
+                    next(i + 1, len);
+                }
+            })
+        } else {
+            callback(null, pathnames);
+        }
+    })(0, pathnames.length);
+ }
+
+ function main(arvg) {
+    var config = JSON.parse(fs.readFileSync(arvg[0], 'utf-8'));
+    var root = config.root || '.';
+    var port = config.port || '80';
+
+    console.log('root:', root, 'port:', port);
+
+    http.createServer(function(request, response) {
+        var urlInfo = parseURL(root, request.url);
+        console.log(urlInfo);
+
+        validateFiles(urlInfo.pathnames, function(error, pathnames) {
+            if (error) {
+                response.writeHead(404);
+                response.end(error.message);
+            } else {
+                response.writeHead(200, {
+                    'Content-Type': urlInfo.mime
+                });
+
+                outputFiles(pathnames, response);
+            }
+        });
+    }).listen(port);
+ }
+
+ main(process.argv.slice(2));
+```
+可以看到，第二版代码在检查了请求的所有文件是否有效之后，立即就输出了响应头，并接着一边按顺序读取文件一边输出响应内容。并且，在读取文件时，第二版代码直接使用了只读数据流来简化代码。
+
+## 第三次迭代 ##
+第二次迭代之后，服务器本身的功能和性能已经得到了初步满足。接下来我们需要从稳定性的角度重新审视一下代码，看看还需要做些什么。
+
+### 设计 ###
+从工程角度上讲，没有绝对可靠的系统。即使第二次迭代的代码经过反复检查后能确保没有bug，也很难说是否会因为NodeJS本身，或者是操作系统本身，甚至是硬件本身导致我们的服务器程序在某一天挂掉。因此一般生产环境下的服务器程序都配有一个守护进程，在服务挂掉的时候立即重启服务。一般守护进程的代码会远比服务进程的代码简单，从概率上可以保证守护进程更难挂掉。如果再做得严谨一些，甚至守护进程自身可以在自己挂掉时重启自己，从而实现双保险。
+
+### 实现 ###
+
+摘自: [https://nqdeng.github.io/7-days-nodejs/](https://nqdeng.github.io/7-days-nodejs/)
 
 
 

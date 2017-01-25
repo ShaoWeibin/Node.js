@@ -14,7 +14,8 @@ const MIME = {
 };
 
 /**
- *合并文件
+ * 合并文件
+ * 第一次迭代使用，第二次迭代废除
  * @param pathnames pathname Array
  * @param callback 
  * @return 
@@ -38,7 +39,7 @@ function combineFiles(pathnames, callback) {
 }
 
 /**
- *解析URL
+ * 解析URL
  * @param root
  * @param url 
  * @return 
@@ -62,6 +63,49 @@ function combineFiles(pathnames, callback) {
  	};
  }
 
+ /**
+ * 输出文件内容
+ * @param pathnames
+ * @return 
+ */
+ function outputFiles(pathnames, write) {
+ 	(function next(i, len) {
+ 		if (i < len) {
+ 			var reader = fs.createReadStream(pathnames[i]);
+
+ 			reader.pipe(write, {end: false});
+ 			reader.on('end', function() {
+ 				next(i + 1, len);
+ 			})
+ 		} else {
+ 			write.end();
+ 		}
+ 	})(0, pathnames.length);
+ }
+
+ /**
+ * 检验文件是否有效
+ * @param pathnames
+ * @return 
+ */
+ function validateFiles(pathnames, callback) {
+ 	(function next(i, len) {
+ 		if (i < len) {
+ 			fs.stat(pathnames[i], function(error, status) {
+ 				if (error) {
+ 					callback(error);
+ 				} else if (!status.isFile()) {
+ 					callback(new error());
+ 				} else {
+ 					next(i + 1, len);
+ 				}
+ 			})
+ 		} else {
+ 			callback(null, pathnames);
+ 		}
+ 	})(0, pathnames.length);
+ }
+
  function main(arvg) {
  	var config = JSON.parse(fs.readFileSync(arvg[0], 'utf-8'));
  	var root = config.root || '.';
@@ -73,7 +117,7 @@ function combineFiles(pathnames, callback) {
  		var urlInfo = parseURL(root, request.url);
  		console.log(urlInfo);
 
- 		combineFiles(urlInfo.pathnames, function(error, data) {
+ 		validateFiles(urlInfo.pathnames, function(error, pathnames) {
  			if (error) {
  				response.writeHead(404);
  				response.end(error.message);
@@ -82,7 +126,7 @@ function combineFiles(pathnames, callback) {
  					'Content-Type': urlInfo.mime
  				});
 
- 				response.end(data);
+ 				outputFiles(pathnames, response);
  			}
  		});
  	}).listen(port);
