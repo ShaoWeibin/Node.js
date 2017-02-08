@@ -134,7 +134,7 @@ function combineFiles(pathnames, callback) {
  	}).listen(port);
 
  	process.on('SIGTERM', function() {
- 		console.log('服务进程接受SIGTERM');
+ 		console.log('服务进程接收SIGTERM');
  		server.close(function() {
  			process.exit(0);
  		});

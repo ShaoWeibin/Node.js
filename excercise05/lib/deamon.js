@@ -28,9 +28,9 @@
  }
 
  function main(argv) {
- 	spawn('lib/server.js', argv[0]);
+ 	spawn('../lib/server.js', argv[0]);
  	process.on('SIGTERM', function() {
- 		console.log('守护进程接受SIGTERM');
+ 		console.log('守护进程接收SIGTERM');
  		work.kill();
  		process.exit(0);
  		console.log('守护进程终止');
