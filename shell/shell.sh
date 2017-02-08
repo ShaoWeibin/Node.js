@@ -148,3 +148,7 @@ who="_mbsetupuser console  Oct 31 17:35\n
 	tianqixin    ttys000  Dec  1 11:33\n"
 echo -e $who > users
 echo "hello world" >> users
+
+#统计行数
+wc -l users
+wc -l < users
