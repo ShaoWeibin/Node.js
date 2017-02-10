@@ -1,0 +1,13 @@
+what is your name:weibin.shao
+
+time: Fri Feb 10 11:09:53 2017
+#!bin/sh
+#auto: weibin.shao
+#date: 2017/2/10
+#stdin
+
+echo -e "name:\c"
+read name
+echo -e "age:\c"
+read age
+echo "your name is $name, your age is $age"
