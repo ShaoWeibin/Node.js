@@ -27,4 +27,14 @@ eventEmitter.on('data_received', function() {
 // 触发 connection 事件
 eventEmitter.emit('connection');
 
+eventEmitter.on('event', function() {
+    console.log(this);
+});
+
+eventEmitter.on('event', () => {
+    console.log(this);
+});
+
+eventEmitter.emit('event');
+
 console.log('程序执行完毕');

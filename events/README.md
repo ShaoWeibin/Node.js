@@ -12,3 +12,14 @@ var myEmmiter = new events.EventEmitter();
 var EventEmitter = reqire('events');
 var myEmmiter = new EventEmitter();
 ```
+
+### 事件回调 ###
+``` javascript
+myEmmiter.on('event', function() {
+    // this 为 myEmitter    
+});
+
+myEmmiter.on('event', () => {
+    // this 指向该箭头函数所在的作用域
+});
+```
